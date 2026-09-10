@@ -1,8 +1,11 @@
 name: ITMO admission monitor
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
+  # This repository is a template. Scheduled runs are intentionally disabled
+  # in upstream. Uncomment this block in your fork after configuring Variables
+  # and Secrets:
+  # schedule:
+  #   - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
