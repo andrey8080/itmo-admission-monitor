@@ -1,0 +1,15 @@
+{
+  "name": "itmo-admission-monitor",
+  "version": "1.1.0",
+  "private": true,
+  "description": "ITMO admission rating monitor for GitHub Actions + Telegram",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node gh-check.js",
+    "check:local": "node --env-file=.env gh-check.js"
+  }
+}

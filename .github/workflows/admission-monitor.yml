@@ -1,0 +1,56 @@
+name: ITMO admission monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: itmo-admission-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      APPLICANT_ID: ${{ vars.APPLICANT_ID }}
+      GENERAL_PLACES: ${{ vars.GENERAL_PLACES }}
+      RATING_URL: ${{ vars.RATING_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      STATE_FILE: '.state/rating-state.json'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run tests
+        run: npm test
+
+      - name: Restore previous state
+        uses: actions/cache/restore@v4
+        with:
+          path: .state
+          key: admission-state-${{ github.run_id }}
+          restore-keys: |
+            admission-state-
+
+      - name: Check rating and notify Telegram
+        run: npm run check
+
+      - name: Save latest state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .state
+          key: admission-state-${{ github.run_id }}
