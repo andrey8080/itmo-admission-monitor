@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeProgramList, parseRatingPage, snapshotFingerprint } = require('../rating');
+const { analyzeProgramList, parseRatingPage } = require('../rating');
 
 const programList = {
   update_time: '2026-08-19T13:10:41+03:00',
@@ -38,12 +38,6 @@ test('extracts programList from a Next.js page', () => {
   const nextData = JSON.stringify({ props: { pageProps: { programList } } });
   const html = `<html><script id="__NEXT_DATA__" type="application/json">${nextData}</script></html>`;
   assert.equal(parseRatingPage(html, 'target-applicant', 66).rawPosition, 4);
-});
-
-test('fingerprint ignores non-material fields', () => {
-  const snapshot = analyzeProgramList(programList, 'target-applicant', 66, 'https://one.test');
-  const same = { ...snapshot, sourceUrl: 'https://two.test', direction: 'renamed' };
-  assert.equal(snapshotFingerprint(snapshot), snapshotFingerprint(same));
 });
 
 test('does not expose configured applicant id in errors', () => {

@@ -153,8 +153,6 @@ schedule:
 
 > GitHub Actions schedule может стартовать с задержкой относительно указанной минуты.
 
-Короткая инструкция есть в [`TEMPLATE_USAGE.md`](./TEMPLATE_USAGE.md), отдельный пример мультипрограммной настройки — в [`MULTI_PROGRAMS.md`](./MULTI_PROGRAMS.md).
-
 ## Локальный запуск
 
 Требуется **Node.js 22+**.
@@ -221,8 +219,6 @@ itmo-admission-monitor/
 │   ├── rating.test.js
 │   ├── state.test.js
 │   └── telegram.test.js
-├── MULTI_PROGRAMS.md
-├── TEMPLATE_USAGE.md
 ├── config.js
 ├── format.js
 ├── gh-check.js
@@ -248,6 +244,7 @@ npm test
 - частичные ошибки;
 - разбиение длинных отчётов;
 - миграция старого single-program state;
+- отправка сообщений через Telegram Bot API;
 - отсутствие applicant ID в сохранённом snapshot.
 
 ## Privacy & security

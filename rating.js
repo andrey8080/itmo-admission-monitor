@@ -247,32 +247,6 @@ function analyzeProgramList(
   };
 }
 
-function snapshotFingerprint(snapshot) {
-  const fields = [
-    'updateTime',
-    'rawPosition',
-    'priority',
-    'totalScore',
-    'agreement',
-    'ovp',
-    'vpp',
-    'ovpPosition',
-    'ovpBuffer',
-    'vppPosition',
-    'vppBuffer',
-    'targetOccupied'
-  ];
-
-  return JSON.stringify(
-    Object.fromEntries(
-      fields.map((field) => [
-        field,
-        snapshot[field]
-      ])
-    )
-  );
-}
-
 function delay(ms) {
   return new Promise(
     (resolve) => setTimeout(resolve, ms)
@@ -282,6 +256,5 @@ function delay(ms) {
 module.exports = {
   analyzeProgramList,
   fetchRating,
-  parseRatingPage,
-  snapshotFingerprint
+  parseRatingPage
 };

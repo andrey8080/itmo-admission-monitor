@@ -20,17 +20,8 @@ async function sendTelegramMessage(token, chatId, text, fetchImpl = fetch) {
     const details = await response.text();
     throw new Error(`Telegram returned HTTP ${response.status}: ${details.slice(0, 300)}`);
   }
+
   return response.json();
 }
 
-function normalizeHeaders(headers = {}) {
-  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]));
-}
-
-function verifyWebhookSecret(event, expectedSecret) {
-  if (!expectedSecret) return false;
-  const headers = normalizeHeaders(event?.headers);
-  return headers['x-telegram-bot-api-secret-token'] === expectedSecret;
-}
-
-module.exports = { sendTelegramMessage, verifyWebhookSecret };
+module.exports = { sendTelegramMessage };
