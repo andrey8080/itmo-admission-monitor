@@ -5,55 +5,165 @@ const path = require('node:path');
 
 const { readConfig } = require('./config');
 const { fetchRating } = require('./rating');
-const { formatSnapshot } = require('./format');
+const { escapeHtml, formatProgramMessages } = require('./format');
 const { sendTelegramMessage } = require('./telegram');
+
+const MAX_CONCURRENT_PROGRAMS = 4;
 
 async function main() {
   const config = readConfig();
-  const previous = readJson(config.stateFile);
+  const previousState = readJson(config.stateFile);
+  const results = await checkPrograms(config, previousState);
+  const messages = formatProgramMessages(results);
 
-  try {
-    const current = await fetchRating(
-      config.ratingUrl,
-      config.applicantId,
-      config.generalPlaces
-    );
-
-    const message = formatSnapshot(current, previous);
+  for (const message of messages) {
     await sendTelegramMessage(
       config.telegramBotToken,
       config.telegramChatId,
       message
     );
+  }
 
-    writeJson(config.stateFile, current);
+  writeJson(
+    config.stateFile,
+    buildNextState(config.programs, previousState, results)
+  );
 
-    console.log(
-      JSON.stringify({
-        event: 'rating-check-ok',
-        updateTime: current.updateTime,
-        rawPosition: current.rawPosition,
-        ovp: current.ovp,
-        vpp: current.vpp,
-        ovpPosition: current.ovpPosition,
-        vppPosition: current.vppPosition
-      })
-    );
-  } catch (error) {
-    console.error(error);
+  const failed = results.filter((result) => !result.ok);
 
-    try {
-      await sendTelegramMessage(
-        config.telegramBotToken,
-        config.telegramChatId,
-        `🔴 <b>Ошибка проверки рейтинга</b>\n\n${escapeHtml(error.message || String(error))}`
-      );
-    } catch (notifyError) {
-      console.error('Cannot notify Telegram about failure:', notifyError);
-    }
+  console.log(
+    JSON.stringify({
+      event: 'rating-check-finished',
+      programs: results.length,
+      succeeded: results.length - failed.length,
+      failed: failed.length,
+      snapshots: results
+        .filter((result) => result.ok)
+        .map((result) => ({
+          direction: result.snapshot.direction,
+          updateTime: result.snapshot.updateTime,
+          rawPosition: result.snapshot.rawPosition,
+          ovp: result.snapshot.ovp,
+          vpp: result.snapshot.vpp,
+          ovpPosition: result.snapshot.ovpPosition,
+          vppPosition: result.snapshot.vppPosition
+        }))
+    })
+  );
 
+  if (failed.length) {
     process.exitCode = 1;
   }
+}
+
+async function checkPrograms(config, previousState) {
+  const results = new Array(config.programs.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < config.programs.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      const program = config.programs[index];
+      const previous = getPreviousSnapshot(
+        previousState,
+        program.ratingUrl,
+        config.programs.length
+      );
+
+      try {
+        const snapshot = await fetchRating(
+          program.ratingUrl,
+          config.applicantId,
+          program.generalPlaces
+        );
+
+        results[index] = {
+          ok: true,
+          sourceUrl: program.ratingUrl,
+          snapshot,
+          previous
+        };
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: 'program-check-error',
+            sourceUrl: program.ratingUrl,
+            message: error.message
+          })
+        );
+
+        results[index] = {
+          ok: false,
+          sourceUrl: program.ratingUrl,
+          error,
+          previous
+        };
+      }
+    }
+  }
+
+  const workerCount = Math.min(
+    MAX_CONCURRENT_PROGRAMS,
+    config.programs.length
+  );
+
+  await Promise.all(
+    Array.from({ length: workerCount }, () => worker())
+  );
+
+  return results;
+}
+
+function getPreviousSnapshot(previousState, sourceUrl, programCount) {
+  if (!previousState) return null;
+
+  if (
+    previousState.version === 2 &&
+    previousState.programs &&
+    typeof previousState.programs === 'object'
+  ) {
+    return previousState.programs[sourceUrl] || null;
+  }
+
+  if (programCount === 1 && !previousState.programs) {
+    return previousState;
+  }
+
+  return null;
+}
+
+function buildNextState(programs, previousState, results) {
+  const byUrl = new Map(
+    results.map((result) => [result.sourceUrl, result])
+  );
+
+  const nextPrograms = {};
+
+  for (const program of programs) {
+    const result = byUrl.get(program.ratingUrl);
+
+    if (result?.ok) {
+      nextPrograms[program.ratingUrl] = result.snapshot;
+      continue;
+    }
+
+    const previous = getPreviousSnapshot(
+      previousState,
+      program.ratingUrl,
+      programs.length
+    );
+
+    if (previous) {
+      nextPrograms[program.ratingUrl] = previous;
+    }
+  }
+
+  return {
+    version: 2,
+    programs: nextPrograms
+  };
 }
 
 function readJson(fileName) {
@@ -72,12 +182,31 @@ function writeJson(fileName, value) {
   fs.writeFileSync(fullPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+if (require.main === module) {
+  main().catch(async (error) => {
+    console.error(error);
+
+    try {
+      const config = readConfig();
+      await sendTelegramMessage(
+        config.telegramBotToken,
+        config.telegramChatId,
+        `🔴 <b>Ошибка мониторинга рейтинга</b>\n\n${escapeHtml(error.message || String(error))}`
+      );
+    } catch (notifyError) {
+      console.error('Cannot notify Telegram about failure:', notifyError);
+    }
+
+    process.exitCode = 1;
+  });
 }
 
-main();
+module.exports = {
+  MAX_CONCURRENT_PROGRAMS,
+  buildNextState,
+  checkPrograms,
+  getPreviousSnapshot,
+  main,
+  readJson,
+  writeJson
+};

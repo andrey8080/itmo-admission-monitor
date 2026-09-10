@@ -1,8 +1,8 @@
 {
   "name": "itmo-admission-monitor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "ITMO admission rating monitor for GitHub Actions + Telegram",
+  "description": "ITMO admission rating monitor for one or more programs using GitHub Actions and Telegram",
   "type": "commonjs",
   "engines": {
     "node": ">=22"

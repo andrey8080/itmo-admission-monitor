@@ -1,5 +1,7 @@
 'use strict';
 
+const TELEGRAM_MESSAGE_LIMIT = 3900;
+
 function yesNo(value) {
   return value ? '✅ да' : '❌ нет';
 }
@@ -29,14 +31,20 @@ function formatSnapshot(snapshot, previous = null) {
       ? '🟡 <b>ОВП есть, но ВПП пока нет</b>'
       : '🔴 <b>ОВП сейчас нет</b>';
 
-  const lines = [
+  const lines = [];
+
+  if (snapshot.direction) {
+    lines.push(`🎓 <b>${escapeHtml(snapshot.direction)}</b>`, '');
+  }
+
+  lines.push(
     title,
     '',
     `<b>Официальный срез:</b> ${escapeHtml(formatUpdateTime(snapshot.updateTime))}`,
     `<b>Сырое место:</b> ${snapshot.rawPosition}`,
     `<b>ОВП:</b> ${yesNo(snapshot.ovp)} ${snapshot.ovpPosition}/${snapshot.generalPlaces} (запас ${snapshot.ovpBuffer})`,
-    `<b>ВПП:</b> ${yesNo(snapshot.vpp)} ${snapshot.vppPosition}/${snapshot.generalPlaces} (запас ${snapshot.vppBuffer})`,
-  ];
+    `<b>ВПП:</b> ${yesNo(snapshot.vpp)} ${snapshot.vppPosition}/${snapshot.generalPlaces} (запас ${snapshot.vppBuffer})`
+  );
 
   if (previous) {
     const changes = diffSnapshot(previous, snapshot);
@@ -50,6 +58,54 @@ function formatSnapshot(snapshot, previous = null) {
   }
 
   return lines.join('\n');
+}
+
+function formatProgramError(sourceUrl, error) {
+  return [
+    '🔴 <b>Не удалось проверить программу</b>',
+    escapeHtml(sourceUrl),
+    '',
+    escapeHtml(error?.message || String(error))
+  ].join('\n');
+}
+
+function formatProgramMessages(results, maxLength = TELEGRAM_MESSAGE_LIMIT) {
+  const sections = results.map((result) =>
+    result.ok
+      ? formatSnapshot(result.snapshot, result.previous)
+      : formatProgramError(result.sourceUrl, result.error)
+  );
+
+  const separator = '\n\n──────────\n\n';
+  const header = '🎓 <b>Мониторинг поступления ИТМО</b>';
+  const bodyLimit = Math.max(100, maxLength - header.length - 50);
+  const chunks = [];
+  let current = '';
+
+  for (const section of sections) {
+    if (!current) {
+      current = section;
+      continue;
+    }
+
+    const candidate = current + separator + section;
+    if (candidate.length <= bodyLimit) {
+      current = candidate;
+    } else {
+      chunks.push(current);
+      current = section;
+    }
+  }
+
+  if (current) chunks.push(current);
+  if (!chunks.length) return [header];
+
+  return chunks.map((chunk, index) => {
+    const part = chunks.length > 1
+      ? `\n<i>Часть ${index + 1}/${chunks.length}</i>`
+      : '';
+    return `${header}${part}\n\n${chunk}`;
+  });
 }
 
 function diffSnapshot(previous, current) {
@@ -85,4 +141,12 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;');
 }
 
-module.exports = { diffSnapshot, escapeHtml, formatSnapshot, formatUpdateTime };
+module.exports = {
+  TELEGRAM_MESSAGE_LIMIT,
+  diffSnapshot,
+  escapeHtml,
+  formatProgramError,
+  formatProgramMessages,
+  formatSnapshot,
+  formatUpdateTime
+};

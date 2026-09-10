@@ -22,8 +22,8 @@ jobs:
 
     env:
       APPLICANT_ID: ${{ vars.APPLICANT_ID }}
+      RATING_URLS: ${{ vars.RATING_URLS || vars.RATING_URL }}
       GENERAL_PLACES: ${{ vars.GENERAL_PLACES }}
-      RATING_URL: ${{ vars.RATING_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       STATE_FILE: '.state/rating-state.json'
@@ -44,16 +44,16 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .state
-          key: admission-state-${{ github.run_id }}
+          key: admission-state-v2-${{ github.run_id }}
           restore-keys: |
-            admission-state-
+            admission-state-v2-
 
-      - name: Check rating and notify Telegram
+      - name: Check ratings and notify Telegram
         run: npm run check
 
       - name: Save latest state
-        if: success()
+        if: always() && hashFiles('.state/rating-state.json') != ''
         uses: actions/cache/save@v4
         with:
           path: .state
-          key: admission-state-${{ github.run_id }}
+          key: admission-state-v2-${{ github.run_id }}
